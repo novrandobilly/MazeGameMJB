@@ -1,17 +1,21 @@
-const { World, Engine, Runner, Render, Bodies } = Matter;
+const { World, Engine, Runner, Render, Bodies, Body, Events } = Matter;
 
-const width = 600,
-	height = 600,
-	rows = 7,
-	columns = 7;
+const width = window.innerWidth,
+	height = window.innerHeight,
+	rows = 20,
+	columns = 28;
+
+const unitLengthHor = width / columns;
+const unitLengthVer = height / rows;
 
 const engine = Engine.create();
+engine.world.gravity.y = 0;
 const { world } = engine;
 const render = Render.create({
 	element: document.body,
 	engine: engine,
 	options: {
-		wireframes: true,
+		wireframes: false,
 		width,
 		height
 	}
@@ -21,10 +25,10 @@ Runner.run(Runner.create(), engine);
 
 // Walls
 const walls = [
-	Bodies.rectangle(width / 2, 0, width, 40, { isStatic: true }),
-	Bodies.rectangle(width / 2, height, width, 40, { isStatic: true }),
-	Bodies.rectangle(0, height / 2, 40, height, { isStatic: true }),
-	Bodies.rectangle(width, height / 2, 40, height, { isStatic: true })
+	Bodies.rectangle(width / 2, 0, width, 2, { isStatic: true }),
+	Bodies.rectangle(width / 2, height, width, 2, { isStatic: true }),
+	Bodies.rectangle(0, height / 2, 2, height, { isStatic: true }),
+	Bodies.rectangle(width, height / 2, 2, height, { isStatic: true })
 ];
 World.add(world, walls);
 
@@ -92,11 +96,115 @@ const cellsIteration = (row, column) => {
 		} else if (direction === 'DOWN') {
 			horizontals[row][column] = true;
 		}
+
+		cellsIteration(nextRow, nextColumn);
 	}
 };
 
-cellsIteration(1, 1);
+cellsIteration(startRow, startColumn);
 
-console.log(grid);
-console.log(verticals);
-console.log(horizontals);
+horizontals.forEach((row, rowIndex) => {
+	row.forEach((open, columnIndex) => {
+		if (open) {
+			return;
+		}
+
+		const wall = Bodies.rectangle(
+			columnIndex * unitLengthHor + unitLengthHor / 2,
+			rowIndex * unitLengthVer + unitLengthVer,
+			unitLengthHor,
+			10,
+			{
+				label: 'wall',
+				isStatic: true,
+				render: {
+					fillStyle: 'red'
+				}
+			}
+		);
+		World.add(world, wall);
+	});
+});
+
+verticals.forEach((row, rowIndex) => {
+	row.forEach((open, columnIndex) => {
+		if (open) {
+			return;
+		}
+
+		const wall = Bodies.rectangle(
+			columnIndex * unitLengthHor + unitLengthHor,
+			rowIndex * unitLengthVer + unitLengthVer / 2,
+			10,
+			unitLengthVer,
+			{
+				label: 'wall',
+				isStatic: true,
+				render: {
+					fillStyle: 'red'
+				}
+			}
+		);
+		World.add(world, wall);
+	});
+});
+
+//Goal
+const goal = Bodies.rectangle(
+	width - unitLengthHor / 2,
+	height - unitLengthVer / 2,
+	0.8 * unitLengthHor,
+	0.8 * unitLengthVer,
+	{
+		label: 'Goal',
+		isStatic: true,
+		render: {
+			fillStyle: 'green'
+		}
+	}
+);
+World.add(world, goal);
+
+//Ball
+const ballRadius = Math.min(unitLengthHor, unitLengthVer) / 4;
+const ball = Bodies.circle(unitLengthHor / 2, unitLengthVer / 2, ballRadius, {
+	label: 'Ball',
+	render: {
+		fillStyle: 'blue'
+	}
+});
+World.add(world, ball);
+
+document.addEventListener('keydown', (event) => {
+	const { x, y } = ball.velocity;
+
+	if (event.keyCode === 87) {
+		Body.setVelocity(ball, { x, y: y - 5 });
+	} else if (event.keyCode === 68) {
+		Body.setVelocity(ball, { x: x + 5, y });
+	}
+	if (event.keyCode === 83) {
+		Body.setVelocity(ball, { x, y: y + 5 });
+	}
+	if (event.keyCode === 65) {
+		Body.setVelocity(ball, { x: x - 5, y });
+	}
+});
+
+//Win Condition
+
+Events.on(engine, 'collisionStart', (event) => {
+	event.pairs.forEach((collision) => {
+		const labels = [ 'Ball', 'Goal' ];
+
+		if (labels.includes(collision.bodyA.label) && labels.includes(collision.bodyB.label)) {
+			document.querySelector('.winner').classList.remove('hidden');
+			world.gravity.y = 1;
+			world.bodies.forEach((body) => {
+				if (body.label === 'wall') {
+					Body.setStatic(body, false);
+				}
+			});
+		}
+	});
+});
